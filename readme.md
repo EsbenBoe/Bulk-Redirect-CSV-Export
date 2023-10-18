@@ -1,5 +1,5 @@
 # Bulk-Redirect-CSV-Export
-Searches Cloudflare's Bulk Redirect List by URL to find the associated Rule ID
+Searches Cloudflare's Bulk Redirect List for each paginated result and exports them back out to CSV.
 
 # The Problem
 

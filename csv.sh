@@ -5,7 +5,7 @@ key="yourapikeyhere"
 list_id=""
 results=""
 
-echo "Sean's Bulk Redirect Item Finder v4.2"
+echo "Sean's Bulk Redirect CSV Exporter v1.1:"
 
 read -p 'Enter the List ID: ' list_id
 

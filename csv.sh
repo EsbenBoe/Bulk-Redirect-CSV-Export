@@ -1,56 +1,100 @@
 #!/bin/bash
 
-email="user@example.com"
-key="yourapikeyhere"
-list_id=""
-results=""
+# Function to display progress bar
+progress_bar() {
+  local progress=$1
+  local total=$2
+  local percent=$(( progress * 100 / total ))
+  local bar=""
 
-echo "Sean's Bulk Redirect CSV Exporter v1.1:"
+  for ((i=0; i<percent/2; i++)); do
+    bar+="#"
+  done
+  printf "\rProgress: [%-50s] %d%%" "$bar" "$percent"
+}
 
-read -p 'Enter the List ID: ' list_id
+#Output Version Number
+echo ""
+echo "Sean's Bulk Redirect CSV Exporter v2.0 (Updated 6/27/2024):"
+echo ""
 
-url="https://api.cloudflare.com/client/v4/accounts/<account_id>/rules/lists/$list_id/items"
-cursor=""
+# Get user input
+read -p 'Enter your Cloudflare email: ' user_email
+read -p 'Enter your Cloudflare account ID: ' account_id
+read -p 'Enter your Cloudflare API key: ' api_key
+echo
 
+# List all lists
+lists_response=$(curl -s --request GET \
+  --url https://api.cloudflare.com/client/v4/accounts/$account_id/rules/lists \
+  --header 'Content-Type: application/json' \
+  --header "X-Auth-Email: $user_email" \
+  --header "X-Auth-Key: $api_key")
+
+# Parse and display list names and IDs
+echo "Available Lists:"
+echo "$lists_response" | jq -r '.result[] | "Name: \(.name)\nDescription: \(.description // "n/a")\nID: \(.id)\n"'
+
+# Get user input for the list ID to edit
+read -p 'Enter the List ID to export: ' user_list
+
+# Get list details
+list_details=$(curl -s --request GET \
+  --url https://api.cloudflare.com/client/v4/accounts/$account_id/rules/lists/$user_list \
+  --header 'Content-Type: application/json' \
+  --header "X-Auth-Email: $user_email" \
+  --header "X-Auth-Key: $api_key")
+
+# Extract number of items
+num_items=$(echo "$list_details" | jq -r '.result.num_items')
+
+# Calculate total iterations and progress update frequency
+total_iterations=$(( (num_items + 24) / 25 ))
+progress_update_freq=$(( total_iterations / 100 + 1 ))
+
+# Initialize CSV output
 csv_results=""
 
+cursor=""
+iterations=0
+
+# Iterate through list items
 while true; do
-  response=$(curl -s "$url?cursor=$cursor" -H "X-Auth-Email: $email" -H "X-Auth-Key: $key")
+  response=$(curl -s --request GET \
+    --url "https://api.cloudflare.com/client/v4/accounts/$account_id/rules/lists/$user_list/items?cursor=$cursor" \
+    --header 'Content-Type: application/json' \
+    --header "X-Auth-Email: $user_email" \
+    --header "X-Auth-Key: $api_key")
 
-  if [[ $(echo "$response" | jq -r '.result | length') -gt 0 ]]; then
-    while IFS= read -r item; do
-      source_url=$(echo "$item" | jq -r '.redirect.source_url')
-      target_url=$(echo "$item" | jq -r '.redirect.target_url')
-      status_code=$(echo "$item" | jq -r '.redirect.status_code')
-      preserve_query_string=$(echo "$item" | jq -r '.redirect.preserve_query_string')
-      include_subdomains=$(echo "$item" | jq -r '.redirect.include_subdomains')
-      subpath_matching=$(echo "$item" | jq -r '.redirect.subpath_matching')
-      preserve_path_suffix=$(echo "$item" | jq -r '.redirect.preserve_path_suffix')
+  items=$(echo "$response" | jq -c '.result[]')
+  for item in $items; do
+    source_url=$(echo "$item" | jq -r '.redirect.source_url // "false"')
+    target_url=$(echo "$item" | jq -r '.redirect.target_url // "false"')
+    status_code=$(echo "$item" | jq -r '.redirect.status_code // "false"')
+    preserve_query_string=$(echo "$item" | jq -r '.redirect.preserve_query_string // "false"')
+    include_subdomains=$(echo "$item" | jq -r '.redirect.include_subdomains // "false"')
+    subpath_matching=$(echo "$item" | jq -r '.redirect.subpath_matching // "false"')
+    preserve_path_suffix=$(echo "$item" | jq -r '.redirect.preserve_path_suffix // "false"')
 
-      # Replace "null" with "false"
-      [ "$source_url" == "null" ] && source_url="false"
-      [ "$target_url" == "null" ] && target_url="false"
-      [ "$status_code" == "null" ] && status_code="false"
-      [ "$preserve_query_string" == "null" ] && preserve_query_string="false"
-      [ "$include_subdomains" == "null" ] && include_subdomains="false"
-      [ "$subpath_matching" == "null" ] && subpath_matching="false"
-      [ "$preserve_path_suffix" == "null" ] && preserve_path_suffix="false"
+    csv_results+=$'\n'"$source_url,$target_url,$status_code,$preserve_query_string,$include_subdomains,$subpath_matching,$preserve_path_suffix"
+  done
 
-      # Add the item's values to the CSV
-      csv_results="${csv_results}\n$source_url,$target_url,$status_code,$preserve_query_string,$include_subdomains,$subpath_matching,$preserve_path_suffix"
-    done <<< "$(echo "$response" | jq -c '.result[]')"
+  cursor=$(echo "$response" | jq -r '.result_info.cursors.after // empty')
+  iterations=$(( iterations + 1 ))
 
-    # Check if there's a next page
-    cursor=$(echo "$response" | jq -r '.result_info.cursors.after')
-    if [[ "$cursor" == "null" ]]; then
-      break
-    fi
-  else
-    echo "No more items found in the list."
+  if (( iterations % progress_update_freq == 0 )); then
+    progress_bar $iterations $total_iterations
+  fi
+
+  if [ -z "$cursor" ]; then
     break
   fi
 done
 
-# Save the results to a CSV file without the header
+# Ensure progress bar reaches 100%
+progress_bar $total_iterations $total_iterations
+echo
+
+# Save the results to a CSV file, removing the first newline character
 echo -e "$csv_results" | sed '1d' > results.csv
 echo "Results saved to results.csv"

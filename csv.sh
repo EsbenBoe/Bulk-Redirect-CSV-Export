@@ -66,8 +66,7 @@ while true; do
     --header "X-Auth-Email: $user_email" \
     --header "X-Auth-Key: $api_key")
 
-  items=$(echo "$response" | jq -c '.result[]')
-  for item in $items; do
+  while read -r item; do
     source_url=$(echo "$item" | jq -r '.redirect.source_url // "false"')
     target_url=$(echo "$item" | jq -r '.redirect.target_url // "false"')
     status_code=$(echo "$item" | jq -r '.redirect.status_code // "false"')
@@ -77,7 +76,7 @@ while true; do
     preserve_path_suffix=$(echo "$item" | jq -r '.redirect.preserve_path_suffix // "false"')
 
     csv_results+=$'\n'"$source_url,$target_url,$status_code,$preserve_query_string,$include_subdomains,$subpath_matching,$preserve_path_suffix"
-  done
+  done < <(echo "$response" | jq -c '.result[]')
 
   cursor=$(echo "$response" | jq -r '.result_info.cursors.after // empty')
   iterations=$(( iterations + 1 ))

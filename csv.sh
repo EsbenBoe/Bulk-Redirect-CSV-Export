@@ -21,15 +21,14 @@ echo ""
 # Get user input
 read -p 'Enter your Cloudflare email: ' user_email
 read -p 'Enter your Cloudflare account ID: ' account_id
-read -p 'Enter your Cloudflare API key: ' api_key
+read -p 'Enter your Cloudflare API Token: ' api_key
 echo
 
 # List all lists
 lists_response=$(curl -s --request GET \
   --url https://api.cloudflare.com/client/v4/accounts/$account_id/rules/lists \
   --header 'Content-Type: application/json' \
-  --header "X-Auth-Email: $user_email" \
-  --header "X-Auth-Key: $api_key")
+  --header "Authorization: Bearer $api_key")
 
 # Parse and display list names and IDs
 echo "Available Lists:"
@@ -42,8 +41,7 @@ read -p 'Enter the List ID to export: ' user_list
 list_details=$(curl -s --request GET \
   --url https://api.cloudflare.com/client/v4/accounts/$account_id/rules/lists/$user_list \
   --header 'Content-Type: application/json' \
-  --header "X-Auth-Email: $user_email" \
-  --header "X-Auth-Key: $api_key")
+  --header "Authorization: Bearer $api_key")
 
 # Extract number of items
 num_items=$(echo "$list_details" | jq -r '.result.num_items')
@@ -63,8 +61,7 @@ while true; do
   response=$(curl -s --request GET \
     --url "https://api.cloudflare.com/client/v4/accounts/$account_id/rules/lists/$user_list/items?cursor=$cursor" \
     --header 'Content-Type: application/json' \
-    --header "X-Auth-Email: $user_email" \
-    --header "X-Auth-Key: $api_key")
+    --header "Authorization: Bearer $api_key")
 
   while read -r item; do
     source_url=$(echo "$item" | jq -r '.redirect.source_url // "false"')

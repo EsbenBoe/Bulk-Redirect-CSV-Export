@@ -19,7 +19,6 @@ echo "Sean's Bulk Redirect CSV Exporter v2.0 (Updated 6/27/2024):"
 echo ""
 
 # Get user input
-read -p 'Enter your Cloudflare email: ' user_email
 read -p 'Enter your Cloudflare account ID: ' account_id
 read -p 'Enter your Cloudflare API Token: ' api_key
 echo
